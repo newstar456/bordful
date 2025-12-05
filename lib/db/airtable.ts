@@ -17,7 +17,7 @@ import type { RemoteRegion, WorkplaceType } from '@/lib/constants/workplace';
 import { normalizeMarkdown } from '@/lib/utils/markdown';
 
 const apitable = new APITable({
-  token: "usk5M0nJYSEsyPdPr9tHQ0L",
+  token: process.env.APITABLE_API_TOKEN as string,
   fieldKey: 'name', // default, can use 'id' to avoid column name changes
   requestTimeout: 60000, // optional, 60s
   host: 'https://api.aitable.ai/fusion/v1', // default host
