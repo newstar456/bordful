@@ -1,11 +1,17 @@
+"use client";
+
 import { Briefcase } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import config from '@/config';
 import { resolveColor } from '@/lib/utils/colors';
+import { createJobAction } from "@/lib/actions/createJobAction";
+import { useTransition } from "react";
 
 export function PostJobBanner() {
+
+  const [isPending, startTransition] = useTransition();
   // Early return if banner is disabled
   if (!config.postJobBanner.enabled) {
     return null;
@@ -20,6 +26,17 @@ export function PostJobBanner() {
     cta,
     trustMessage,
   } = config.postJobBanner;
+
+  function handleCreateJob() {
+    // console.log('helo');
+    // const form = new FormData();
+    // form.append("job_identifier", "JOB-" + Math.floor(Math.random() * 9999));
+    // form.append("title", "Banner Posted Job");
+
+    // startTransition(() => {
+    //   createJobAction(form);
+    // });
+  }
 
   return (
     <Card className="rounded-lg border p-6 shadow-none">
@@ -45,6 +62,7 @@ export function PostJobBanner() {
         href={cta.link}
         rel={cta.external ? 'noopener noreferrer' : undefined}
         target={cta.external ? '_blank' : undefined}
+        onClick={handleCreateJob}
       >
         <Button
           className="flex h-8 w-full items-center justify-center gap-1.5 px-3 text-xs sm:h-7 sm:px-2.5"

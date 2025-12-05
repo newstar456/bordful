@@ -1,4 +1,6 @@
-import Airtable from 'airtable';
+// 'use client';
+import { APITable } from 'apitable';
+// import Airtable from 'airtable';
 import {
   CURRENCY_CODES,
   CURRENCY_RATES,
@@ -14,14 +16,16 @@ import {
 import type { RemoteRegion, WorkplaceType } from '@/lib/constants/workplace';
 import { normalizeMarkdown } from '@/lib/utils/markdown';
 
-// Initialize Airtable with Personal Access Token
-const base = new Airtable({
-  apiKey: process.env.AIRTABLE_ACCESS_TOKEN,
-  endpointUrl: 'https://api.airtable.com',
-}).base(process.env.AIRTABLE_BASE_ID || '');
+const apitable = new APITable({
+  token: "usk5M0nJYSEsyPdPr9tHQ0L",
+  fieldKey: 'name', // default, can use 'id' to avoid column name changes
+  requestTimeout: 60000, // optional, 60s
+  host: 'https://api.aitable.ai/fusion/v1', // default host
+});
 
-// Get table name from environment variables with fallback
-const TABLE_NAME = process.env.AIRTABLE_TABLE_NAME || 'Jobs';
+
+const DATASHEET_ID = process.env.APITABLE_DATASHEET_ID || '';
+
 
 export type CareerLevel =
   | 'Internship'
@@ -57,38 +61,229 @@ export type Job = {
   id: string;
   title: string;
   company: string;
-  type: 'Full-time' | 'Part-time' | 'Contract' | 'Freelance';
-  salary: Salary | null;
-  description: string;
-  benefits: string | null;
-  application_requirements: string | null;
-  apply_url: string;
-  posted_date: string;
-  valid_through?: string | null;
-  job_identifier?: string | null;
-  job_source_name?: string | null;
-  status: 'active' | 'inactive';
-  career_level: CareerLevel[];
-  visa_sponsorship: 'Yes' | 'No' | 'Not specified';
-  featured: boolean;
-  workplace_type: WorkplaceType;
-  remote_region: RemoteRegion;
-  timezone_requirements: string | null;
-  workplace_city: string | null;
-  workplace_country: string | null;
-  languages: LanguageCode[];
-
-  // Schema.org fields for structured data
-  skills?: string | null;
-  qualifications?: string | null;
-  education_requirements?: string | null;
-  experience_requirements?: string | null;
-  industry?: string | null;
-  occupational_category?: string | null;
-  responsibilities?: string | null;
+  type?: string;
+  status?: 'active' | 'inactive';
+  posted_date?: number | string;
+  apply_method?: any;
+  description?: string;
+  salary_min?: number;
+  salary_max?: number;
+  salary_currency?: string;
+  salary_unit?: string;
+  career_level?: string[];
+  workplace_type?: string;
+  remote_region?: string;
+  timezone_requirements?: string;
+  workplace_city?: string;
+  workplace_country?: string;
+  languages?: string[];
+  benefits?: string;
+  application_requirements?: string;
+  valid_through?: number | string;
+  job_identifier?: string;
+  job_source_name?: string;
+  featured?: boolean;
+  visa_sponsorship?: string;
+  skills?: string;
+  qualifications?: string;
+  education_requirements?: string;
+  experience_requirements?: string;
+  industry?: string;
+  occupational_category?: string;
+  responsibilities?: string;
+  apitable_id?: string;
 };
 
-// Format salary for display
+// Input type (no recordId, no id field)
+export type JobInput = Partial<Omit<Job, "id">>;
+
+// -------------------------------
+// Query: Get all jobs (with pagination)
+// -------------------------------
+
+export async function getJobs(): Promise<Job[]> {
+  try {
+  const datasheet = apitable.datasheet(DATASHEET_ID);
+  const allRecords: Job[] = [];
+  const iter = datasheet.records.queryAll({ viewId: "viwx65RM2KhKT", cellFormat: 'json' });
+
+  for await (const records of iter) {
+    if (!records || !Array.isArray(records)) continue;
+
+    for (const record of records) {
+      const f = record.fields || {};
+
+      allRecords.push({
+        id: record.recordId,
+        title: f.title as string,
+        company: f.company as string,
+        type: f.type as string,
+        status: f.status as "active" | "inactive",
+        posted_date: f.posted_date as number | string,
+        apply_method: f.apply_method as any,
+        description: f.description as string,
+        salary_min: f.salary_min as number,
+        salary_max: f.salary_max as number,
+        salary_currency: f.salary_currency as string,
+        salary_unit: f.salary_unit as string,
+        career_level: Array.isArray(f.career_level) ? f.career_level : [],
+        workplace_type: f.workplace_type as string,
+        remote_region: f.remote_region as string,
+        timezone_requirements: f.timezone_requirements as string,
+        workplace_city: f.workplace_city as string,
+        workplace_country: f.workplace_country as string,
+        languages: Array.isArray(f.languages) ? f.languages : [],
+        benefits: f.benefits as string,
+        application_requirements: f.application_requirements as string,
+        valid_through: f.valid_through as number | string,
+        job_identifier: f.job_identifier as string,
+        job_source_name: f.job_source_name as string,
+        featured: f.featured as boolean,
+        visa_sponsorship: f.visa_sponsorship as string,
+        skills: f.skills as string,
+        qualifications: f.qualifications as string,
+        education_requirements: f.education_requirements as string,
+        experience_requirements: f.experience_requirements as string,
+        industry: f.industry as string,
+        occupational_category: f.occupational_category as string,
+        responsibilities: f.responsibilities as string,
+        apitable_id: f.apitable_id as string
+      });
+    }
+  }
+
+  return allRecords;
+    } catch (error) {
+      console.error("Error fetching jobs from APITable:", error);
+      return [];
+    }
+}
+
+// -------------------------------
+// Query: Get a single job by recordId
+// -------------------------------
+export async function getJob(recordId: string): Promise<Job | null> {
+  try {
+    const datasheet = apitable.datasheet(DATASHEET_ID);
+    const res = await datasheet.records.query({
+      recordIds: [recordId],
+      cellFormat: "json",
+      maxRecords: 1,
+    });
+
+    if (!res.success || !res.data.records?.length) return null;
+
+    const record = res.data.records[0];
+    const f = record.fields;
+
+    return {
+        id: record.recordId,
+        title: f.title as string,
+        company: f.company as string,
+        type: f.type as string,
+        status: f.status as "active" | "inactive",
+        posted_date: f.posted_date as number | string,
+        apply_method: f.apply_method as any,
+        description: f.description as string,
+        salary_min: f.salary_min as number,
+        salary_max: f.salary_max as number,
+        salary_currency: f.salary_currency as string,
+        salary_unit: f.salary_unit as string,
+        career_level: Array.isArray(f.career_level) ? f.career_level : [],
+        workplace_type: f.workplace_type as string,
+        remote_region: f.remote_region as string,
+        timezone_requirements: f.timezone_requirements as string,
+        workplace_city: f.workplace_city as string,
+        workplace_country: f.workplace_country as string,
+        languages: Array.isArray(f.languages) ? f.languages : [],
+        benefits: f.benefits as string,
+        application_requirements: f.application_requirements as string,
+        valid_through: f.valid_through as number | string,
+        job_identifier: f.job_identifier as string,
+        job_source_name: f.job_source_name as string,
+        featured: f.featured as boolean,
+        visa_sponsorship: f.visa_sponsorship as string,
+        skills: f.skills as string,
+        qualifications: f.qualifications as string,
+        education_requirements: f.education_requirements as string,
+        experience_requirements: f.experience_requirements as string,
+        industry: f.industry as string,
+        occupational_category: f.occupational_category as string,
+        responsibilities: f.responsibilities as string,
+        apitable_id: f.apitable_id as string
+    };
+  } catch (err) {
+    console.error("Error fetching job:", err);
+    return null;
+  }
+}
+
+// -------------------------------
+// Create a new APITable record
+// -------------------------------
+
+export async function createJob(data: JobInput) {
+  const datasheet = apitable.datasheet(DATASHEET_ID);
+
+  const res = await datasheet.records.create([
+    {
+      fields: {
+        ...data,
+      },
+    },
+  ]);
+
+  if (!res.success) throw new Error("APITable create failed");
+
+  return res.data.records[0];
+}
+// -------------------------------
+// Update an existing record
+// -------------------------------
+
+export async function updateJob(recordId: string, data: JobInput) {
+  const datasheet = apitable.datasheet(DATASHEET_ID);
+
+  const res = await datasheet.records.update([
+    {
+      recordId,
+      fields: {
+        ...data,
+        updatedAt: Date.now(), // optional but valid
+      },
+    },
+  ]);
+
+  if (!res.success) throw new Error("APITable update failed");
+
+  return res.data.records[0];
+}
+
+// -------------------------------
+// Upsert by job_identifier
+// -------------------------------
+
+export async function upsertJob(job_identifier: string, data: JobInput) {
+  const datasheet = apitable.datasheet(DATASHEET_ID);
+
+  // Search for existing job
+  const res = await datasheet.records.query({
+    filterByFormula: `{job_identifier} = "${job_identifier}"`,
+    maxRecords: 1,
+    cellFormat: "json",
+  });
+
+  const existing = res.success && res.data.records?.[0];
+
+  if (existing) {
+    return updateJob(existing.recordId, data);
+  } else {
+    return createJob({ ...data, job_identifier });
+  }
+}
+
+
+// // Format salary for display
 export function formatSalary(
   salary: Salary | null,
   showCurrencyCode = false
@@ -173,13 +368,13 @@ export function formatSalary(
   return `${formattedSymbol}${range}${unitDisplay}${currencyCode}`;
 }
 
-// Format USD approximation for non-USD salaries
+// // Format USD approximation for non-USD salaries
 export function formatUSDApproximation(salary: Salary | null): string | null {
   if (!(salary && (salary.min || salary.max)) || salary.currency === 'USD') {
     return null;
   }
 
-  // Create a USD equivalent salary object
+//   // Create a USD equivalent salary object
   const usdSalary: Salary = {
     min: salary.min ? salary.min * CURRENCY_RATES[salary.currency] : null,
     max: salary.max ? salary.max * CURRENCY_RATES[salary.currency] : null,
@@ -187,21 +382,21 @@ export function formatUSDApproximation(salary: Salary | null): string | null {
     unit: salary.unit,
   };
 
-  // Format without currency code
+//   // Format without currency code
   const formatted = formatSalary(usdSalary, false);
   return `≈ ${formatted}`;
 }
 
-// Normalize salary for comparison (convert to annual USD)
+// // Normalize salary for comparison (convert to annual USD)
 export function normalizeAnnualSalary(salary: Salary | null): number {
   if (!(salary && (salary.min || salary.max))) {
     return -1;
   }
 
-  // Use the conversion rates from the currency constants
+//   // Use the conversion rates from the currency constants
   const exchangeRate = CURRENCY_RATES[salary.currency] || 1;
 
-  // Annualization multipliers
+//   // Annualization multipliers
   const annualMultiplier: Record<SalaryUnit, number> = {
     hour: 2080, // 40 hours/week * 52 weeks
     day: 260, // 52 weeks * 5 days
@@ -211,14 +406,11 @@ export function normalizeAnnualSalary(salary: Salary | null): number {
     project: 1, // Projects treated as one-time annual equivalent
   };
 
-  // Use the maximum value for comparison, or minimum if no maximum
   const value = salary.max || salary.min || 0;
-
-  // Convert to USD and annualize
   return value * exchangeRate * annualMultiplier[salary.unit];
 }
 
-// Ensure career level is always returned as an array
+// // Ensure career level is always returned as an array
 function normalizeCareerLevel(value: unknown): CareerLevel[] {
   if (!value) {
     return ['NotSpecified'];
@@ -233,7 +425,7 @@ function normalizeCareerLevel(value: unknown): CareerLevel[] {
     });
   }
 
-  // Handle single value
+//   // Handle single value
   const normalized = (value as string).replace(/\s+/g, '');
   return [normalized as CareerLevel];
 }
@@ -320,11 +512,11 @@ function normalizeLanguages(value: unknown): LanguageCode[] {
     .filter((code): code is LanguageCode => code !== null);
 }
 
-// Function to normalize currency data from Airtable
-// This can handle multiple formats:
-// - ISO codes directly: "USD", "EUR" or crypto codes: "USDT", "DOGE"
-// - "Currency Code (Name)" format: "USD (United States Dollar)", "USDT (Tether USD)"
-// - Currency names: "United States Dollar", "Tether USD" (via lookup)
+// // Function to normalize currency data from Airtable
+// // This can handle multiple formats:
+// // - ISO codes directly: "USD", "EUR" or crypto codes: "USDT", "DOGE"
+// // - "Currency Code (Name)" format: "USD (United States Dollar)", "USDT (Tether USD)"
+// // - Currency names: "United States Dollar", "Tether USD" (via lookup)
 function normalizeCurrency(value: unknown): CurrencyCode {
   if (!value) {
     return 'USD'; // Default to USD if no currency specified
@@ -355,17 +547,17 @@ function normalizeCurrency(value: unknown): CurrencyCode {
     }
   }
 
-  // Default to USD if we can't determine the currency
+//   // Default to USD if we can't determine the currency
   return 'USD';
 }
 
-// Function to normalize benefits text with a maximum length
+// // Function to normalize benefits text with a maximum length
 function normalizeBenefits(value: unknown): string | null {
   if (!value) {
     return null;
   }
 
-  // Convert to string if it's not already
+//   // Convert to string if it's not already
   const benefitsText = String(value).trim();
 
   // If empty after trimming, return null
@@ -373,7 +565,7 @@ function normalizeBenefits(value: unknown): string | null {
     return null;
   }
 
-  // Trim to maximum 1000 characters for safety
+//   // Trim to maximum 1000 characters for safety
   const MAX_BENEFITS_LENGTH = 1000;
   if (benefitsText.length > MAX_BENEFITS_LENGTH) {
     return benefitsText.substring(0, MAX_BENEFITS_LENGTH).trim();
@@ -382,21 +574,21 @@ function normalizeBenefits(value: unknown): string | null {
   return benefitsText;
 }
 
-// Function to normalize application requirements with a maximum length
+// // Function to normalize application requirements with a maximum length
 function normalizeApplicationRequirements(value: unknown): string | null {
   if (!value) {
     return null;
   }
 
-  // Convert to string if it's not already
+//   // Convert to string if it's not already
   const requirementsText = String(value).trim();
 
-  // If empty after trimming, return null
+//   // If empty after trimming, return null
   if (!requirementsText) {
     return null;
   }
 
-  // Trim to maximum 1000 characters for safety
+//   // Trim to maximum 1000 characters for safety
   const MAX_REQUIREMENTS_LENGTH = 1000;
   if (requirementsText.length > MAX_REQUIREMENTS_LENGTH) {
     return requirementsText.substring(0, MAX_REQUIREMENTS_LENGTH).trim();
@@ -405,7 +597,7 @@ function normalizeApplicationRequirements(value: unknown): string | null {
   return requirementsText;
 }
 
-// Function to normalize visa sponsorship field
+// // Function to normalize visa sponsorship field
 function normalizeVisaSponsorship(
   value: unknown
 ): 'Yes' | 'No' | 'Not specified' {
@@ -430,145 +622,15 @@ function normalizeVisaSponsorship(
   return 'Not specified';
 }
 
-export async function getJobs(): Promise<Job[]> {
-  try {
-    // Fetch all active jobs
-    const records = await base(TABLE_NAME)
-      .select({
-        filterByFormula: "{status} = 'active'",
-        sort: [{ field: 'posted_date', direction: 'desc' }],
-      })
-      .all();
 
-    // Transform Airtable records to our Job type
-    const jobs = records.map((record) => {
-      const fields = record.fields;
-
-      return {
-        id: record.id,
-        title: fields.title as string,
-        company: fields.company as string,
-        type: fields.type as Job['type'],
-        salary:
-          fields.salary_min || fields.salary_max
-            ? {
-                min: fields.salary_min ? Number(fields.salary_min) : null,
-                max: fields.salary_max ? Number(fields.salary_max) : null,
-                currency: normalizeCurrency(fields.salary_currency),
-                unit: fields.salary_unit as SalaryUnit,
-              }
-            : null,
-        description: normalizeMarkdown(fields.description as string),
-        benefits: normalizeBenefits(fields.benefits),
-        application_requirements: normalizeApplicationRequirements(
-          fields.application_requirements
-        ),
-        apply_url: fields.apply_url as string,
-        posted_date: fields.posted_date as string,
-        // New fields
-        valid_through: (fields.valid_through as string) || null,
-        job_identifier: (fields.job_identifier as string) || null,
-        job_source_name: (fields.job_source_name as string) || null,
-        status: fields.status as Job['status'],
-        career_level: normalizeCareerLevel(fields.career_level),
-        visa_sponsorship: normalizeVisaSponsorship(fields.visa_sponsorship),
-        featured: !!fields.featured,
-        workplace_type: normalizeWorkplaceType(fields.workplace_type),
-        remote_region: normalizeRemoteRegion(fields.remote_region),
-        timezone_requirements: (fields.timezone_requirements as string) || null,
-        workplace_city: (fields.workplace_city as string) || null,
-        workplace_country: (fields.workplace_country as string) || null,
-        languages: normalizeLanguages(fields.languages),
-
-        // Schema.org structured data fields
-        skills: (fields.skills as string) || null,
-        qualifications: (fields.qualifications as string) || null,
-        education_requirements:
-          (fields.education_requirements as string) || null,
-        experience_requirements:
-          (fields.experience_requirements as string) || null,
-        industry: (fields.industry as string) || null,
-        occupational_category: (fields.occupational_category as string) || null,
-        responsibilities: (fields.responsibilities as string) || null,
-      };
-    });
-
-    return jobs;
-  } catch (_error) {
-    return [];
-  }
-}
-
-export async function getJob(id: string): Promise<Job | null> {
-  try {
-    const record = await base(TABLE_NAME).find(id);
-    const fields = record.fields;
-
-    // Return null for inactive jobs - consistent with Google's guidelines to return 404
-    if (fields.status !== 'active') {
-      return null;
-    }
-
-    return {
-      id: record.id,
-      title: fields.title as string,
-      company: fields.company as string,
-      type: fields.type as Job['type'],
-      salary:
-        fields.salary_min || fields.salary_max
-          ? {
-              min: fields.salary_min ? Number(fields.salary_min) : null,
-              max: fields.salary_max ? Number(fields.salary_max) : null,
-              currency: normalizeCurrency(fields.salary_currency),
-              unit: fields.salary_unit as SalaryUnit,
-            }
-          : null,
-      description: normalizeMarkdown(fields.description as string),
-      benefits: normalizeBenefits(fields.benefits),
-      application_requirements: normalizeApplicationRequirements(
-        fields.application_requirements
-      ),
-      apply_url: fields.apply_url as string,
-      posted_date: fields.posted_date as string,
-      // New fields
-      valid_through: (fields.valid_through as string) || null,
-      job_identifier: (fields.job_identifier as string) || null,
-      job_source_name: (fields.job_source_name as string) || null,
-      status: fields.status as Job['status'],
-      career_level: normalizeCareerLevel(fields.career_level),
-      visa_sponsorship: normalizeVisaSponsorship(fields.visa_sponsorship),
-      featured: !!fields.featured,
-      workplace_type: normalizeWorkplaceType(fields.workplace_type),
-      remote_region: normalizeRemoteRegion(fields.remote_region),
-      timezone_requirements: (fields.timezone_requirements as string) || null,
-      workplace_city: (fields.workplace_city as string) || null,
-      workplace_country: (fields.workplace_country as string) || null,
-      languages: normalizeLanguages(fields.languages),
-
-      // Schema.org structured data fields
-      skills: (fields.skills as string) || null,
-      qualifications: (fields.qualifications as string) || null,
-      education_requirements: (fields.education_requirements as string) || null,
-      experience_requirements:
-        (fields.experience_requirements as string) || null,
-      industry: (fields.industry as string) || null,
-      occupational_category: (fields.occupational_category as string) || null,
-      responsibilities: (fields.responsibilities as string) || null,
-    };
-  } catch (_error) {
-    return null;
-  }
-}
 
 export async function testConnection() {
   try {
-    const _records = await base(TABLE_NAME)
-      .select({
-        maxRecords: 1, // Just get one record to test
-      })
-      .all();
-    return true;
-  } catch (_error) {
+    const datasheet = apitable.datasheet(DATASHEET_ID);
+    const response = await datasheet.records.query({ maxRecords: 1 });
+    return response.success && response.data.records.length > 0;
+  } catch (error) {
+    console.error('APITable connection test failed:', error);
     return false;
-  }
+  } 
 }

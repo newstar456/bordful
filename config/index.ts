@@ -9,8 +9,8 @@
  * 3. The app will use your custom configuration
  */
 
-import type { Config } from './config.example';
-import { config as exampleConfig } from './config.example';
+import type { Config } from './config';
+import { config as exampleConfig } from './config';
 
 let customConfig: Partial<Config> | undefined;
 
